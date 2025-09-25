@@ -1,0 +1,42 @@
+### Health Check
+GET http://localhost:5101/
+Accept: application/json
+
+###
+
+### Bulk Insert - /cashKuber
+POST http://localhost:5101/cashKuber
+Content-Type: application/json
+//header name: header value
+api-key: moneyview
+
+[
+  {
+    "Name": "Parveen Kumar",
+    "Phone": "9876543220",
+    "Email": "parveen@example.com",
+    "Employment": "Software Engineer",
+    "Pan": "AfCDE1234F",
+    "Pincode": "110001",
+    "Income": "50000",
+    "City": "Delhi",
+    "State": "Delhi",
+    "Dob": "1998-01-01",
+    "Gender": "Male",
+    "PartnerId": "PART123"
+  },
+  {
+    "Name": "Rahul Sharma",
+    "Phone": "9876543211",
+    "Email": "rahul@example.com",
+    "Employment": "Manager",
+    "Pan": "PQRSX5678Z",
+    "Pincode": "560001",
+    "Income": "65000",
+    "City": "Bangalore",
+    "State": "Karnataka",
+    "Dob": "1990-02-02",
+    "Gender": "Male",
+    "PartnerId": "PART456"
+  }
+]

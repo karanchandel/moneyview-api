@@ -1,0 +1,16 @@
+# ✅ Ignore .env file
+.env
+
+# ✅ Ignore build folders
+bin/
+obj/
+
+# ✅ Ignore user-specific files
+*.user
+*.suo
+
+# ✅ Ignore logs
+*.log
+
+# ✅ Ignore VS Code settings (optional)
+.vscode/
