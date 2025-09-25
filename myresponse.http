@@ -1,11 +1,11 @@
 ### Health Check
-GET http://localhost:5101/
+GET http://127.0.0.1/
 Accept: application/json
 
 ###
 
 ### Bulk Insert - /cashKuber
-POST http://localhost:5101/cashKuber
+POST http://127.0.0.1/cashKuber
 Content-Type: application/json
 //header name: header value
 api-key: moneyview

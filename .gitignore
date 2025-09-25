@@ -1,16 +1,25 @@
-# ✅ Ignore .env file
+# ✅ Environment & Secrets
 .env
 
-# ✅ Ignore build folders
+# ✅ Build outputs
 bin/
 obj/
+out/
+publish/
 
-# ✅ Ignore user-specific files
+# ✅ User-specific files
 *.user
 *.suo
 
-# ✅ Ignore logs
+# ✅ Logs
 *.log
 
-# ✅ Ignore VS Code settings (optional)
+# ✅ Visual Studio Code settings
 .vscode/
+
+# ✅ Rider / JetBrains IDE
+.idea/
+
+# ✅ OS generated files
+.DS_Store
+Thumbs.db

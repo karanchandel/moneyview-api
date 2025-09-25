@@ -1,14 +1,17 @@
 using Npgsql;
 using Microsoft.AspNetCore.Http.Json;
 using System.ComponentModel.DataAnnotations;
-using DotNetEnv; // ✅ Add this
+using DotNetEnv;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ✅ Load .env file before accessing env vars
+// ✅ Load environment variables from .env
 Env.Load();
 
-// Enable case-insensitive JSON property matching
+// ✅ Allow ASP.NET to listen on all interfaces inside Docker
+builder.WebHost.UseUrls("http://+:80");
+
+// ✅ Case-insensitive JSON property matching
 builder.Services.Configure<JsonOptions>(options =>
 {
     options.SerializerOptions.PropertyNameCaseInsensitive = true;
@@ -17,15 +20,18 @@ builder.Services.Configure<JsonOptions>(options =>
 var app = builder.Build();
 var logger = app.Logger;
 
-// ✅ PostgreSQL connection string from appsettings.json or .env
+// ✅ PostgreSQL connection string
 string connectionString = builder.Configuration.GetConnectionString("PostgresConnection")
     ?? Environment.GetEnvironmentVariable("POSTGRES_URL")
     ?? throw new InvalidOperationException("PostgreSQL connection string not found!");
 
-// Health check endpoint
+// ✅ Utility for handling NULL values in DB inserts
+object ToDbValue(string? value) => string.IsNullOrWhiteSpace(value) ? DBNull.Value : value;
+
+// ✅ Health check endpoint
 app.MapGet("/", () => Results.Ok("✅ Bulk API is running..."));
 
-// Bulk insert endpoint
+// ✅ Bulk insert endpoint
 app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users) =>
 {
     if (!context.Request.Headers.TryGetValue("api-key", out var apiKey) || apiKey != "moneyview")
@@ -39,6 +45,7 @@ app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users)
 
     foreach (var user in users)
     {
+        // Validation
         if (string.IsNullOrWhiteSpace(user.PartnerId))
         {
             skipped.Add(new { user.Name, user.Phone, user.Pan, reason = "Missing PartnerId" });
@@ -51,10 +58,11 @@ app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users)
             continue;
         }
 
+        // Check duplicate
         string checkQuery = "SELECT COUNT(*) FROM moneyview WHERE phone = @phone OR pan = @pan";
         using var checkCmd = new NpgsqlCommand(checkQuery, conn);
-        checkCmd.Parameters.AddWithValue("@phone", user.Phone ?? (object)DBNull.Value);
-        checkCmd.Parameters.AddWithValue("@pan", user.Pan ?? (object)DBNull.Value);
+        checkCmd.Parameters.AddWithValue("@phone", ToDbValue(user.Phone));
+        checkCmd.Parameters.AddWithValue("@pan", ToDbValue(user.Pan));
         int exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync());
 
         if (exists > 0)
@@ -63,21 +71,22 @@ app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users)
             continue;
         }
 
+        // Insert
         string insertQuery = @"
             INSERT INTO moneyview (name, phone, email, employment, pan, pincode, income, city, state, dob, gender, partner_id)
             VALUES (@name, @phone, @email, @employment, @pan, @pincode, @income, @city, @state, @dob, @gender, @partner_id)";
         using var insertCmd = new NpgsqlCommand(insertQuery, conn);
-        insertCmd.Parameters.AddWithValue("@name", user.Name ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@phone", user.Phone ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@email", user.Email ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@employment", user.Employment ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@pan", user.Pan ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@pincode", user.Pincode ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@income", user.Income ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@city", user.City ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@state", user.State ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@dob", user.Dob ?? (object)DBNull.Value);
-        insertCmd.Parameters.AddWithValue("@gender", user.Gender ?? (object)DBNull.Value);
+        insertCmd.Parameters.AddWithValue("@name", ToDbValue(user.Name));
+        insertCmd.Parameters.AddWithValue("@phone", ToDbValue(user.Phone));
+        insertCmd.Parameters.AddWithValue("@email", ToDbValue(user.Email));
+        insertCmd.Parameters.AddWithValue("@employment", ToDbValue(user.Employment));
+        insertCmd.Parameters.AddWithValue("@pan", ToDbValue(user.Pan));
+        insertCmd.Parameters.AddWithValue("@pincode", ToDbValue(user.Pincode));
+        insertCmd.Parameters.AddWithValue("@income", ToDbValue(user.Income));
+        insertCmd.Parameters.AddWithValue("@city", ToDbValue(user.City));
+        insertCmd.Parameters.AddWithValue("@state", ToDbValue(user.State));
+        insertCmd.Parameters.AddWithValue("@dob", ToDbValue(user.Dob));
+        insertCmd.Parameters.AddWithValue("@gender", ToDbValue(user.Gender));
         insertCmd.Parameters.AddWithValue("@partner_id", user.PartnerId);
 
         int rows = await insertCmd.ExecuteNonQueryAsync();
@@ -89,24 +98,10 @@ app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users)
                 user.Phone,
                 user.Pan,
                 status = "Inserted",
-                createdDate = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss")
+                createdDate = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss")
             });
 
-            logger.LogInformation("✅ Inserted user: {@User}", new
-            {
-                user.Name,
-                user.Phone,
-                user.Email,
-                user.Employment,
-                user.Pan,
-                user.Pincode,
-                user.Income,
-                user.City,
-                user.State,
-                user.Dob,
-                user.Gender,
-                user.PartnerId
-            });
+            logger.LogInformation("✅ Inserted user: {@User}", user);
         }
         else
         {
@@ -115,13 +110,13 @@ app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users)
         }
     }
 
-    return Results.Json(new
-    {
-        insertedCount = inserted.Count,
-        skippedCount = skipped.Count,
-        inserted,
-        skipped
-    }, statusCode: inserted.Any() && skipped.Any() ? 207 : 200);
+    // ✅ Status Code Logic
+    if (inserted.Count > 0 && skipped.Count > 0)
+        return Results.Json(new { insertedCount = inserted.Count, skippedCount = skipped.Count, inserted, skipped }, statusCode: 207);
+    if (inserted.Count == 0 && skipped.Count > 0)
+        return Results.Json(new { skippedCount = skipped.Count, skipped }, statusCode: 409);
+
+    return Results.Json(new { insertedCount = inserted.Count, inserted }, statusCode: 200);
 });
 
 app.Run();
