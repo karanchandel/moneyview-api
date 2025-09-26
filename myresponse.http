@@ -1,11 +1,11 @@
 ### Health Check
-GET http://127.0.0.1/
+GET https://moneyview-api-2.onrender.com/
 Accept: application/json
 
 ###
 
 ### Bulk Insert - /cashKuber
-POST http://127.0.0.1/cashKuber
+POST https://moneyview-api-2.onrender.com/cashKuber
 Content-Type: application/json
 //header name: header value
 api-key: moneyview

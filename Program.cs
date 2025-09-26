@@ -28,6 +28,8 @@ object ToDbValue(string? value) => string.IsNullOrWhiteSpace(value) ? DBNull.Val
 // ✅ Health check endpoint
 app.MapGet("/", () => Results.Ok("✅ Bulk API is running..."));
 
+app.MapGet("/health", () => Results.Ok("✅ Bulk API is healthy..."));
+
 // ✅ Bulk insert endpoint
 app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users) =>
 {
