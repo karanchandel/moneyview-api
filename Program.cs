@@ -1,15 +1,12 @@
 using Npgsql;
 using Microsoft.AspNetCore.Http.Json;
 using System.ComponentModel.DataAnnotations;
-using DotNetEnv;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ✅ Load environment variables from .env
-Env.Load();
-
-// ✅ Allow ASP.NET to listen on all interfaces inside Docker
-builder.WebHost.UseUrls("http://+:80");
+// ✅ Bind to dynamic port (Render uses PORT env)
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+builder.WebHost.UseUrls($"http://*:{port}");
 
 // ✅ Case-insensitive JSON property matching
 builder.Services.Configure<JsonOptions>(options =>
@@ -20,7 +17,7 @@ builder.Services.Configure<JsonOptions>(options =>
 var app = builder.Build();
 var logger = app.Logger;
 
-// ✅ PostgreSQL connection string
+// ✅ PostgreSQL connection string from env or config
 string connectionString = builder.Configuration.GetConnectionString("PostgresConnection")
     ?? Environment.GetEnvironmentVariable("POSTGRES_URL")
     ?? throw new InvalidOperationException("PostgreSQL connection string not found!");
@@ -45,7 +42,6 @@ app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users)
 
     foreach (var user in users)
     {
-        // Validation
         if (string.IsNullOrWhiteSpace(user.PartnerId))
         {
             skipped.Add(new { user.Name, user.Phone, user.Pan, reason = "Missing PartnerId" });
@@ -58,7 +54,6 @@ app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users)
             continue;
         }
 
-        // Check duplicate
         string checkQuery = "SELECT COUNT(*) FROM moneyview WHERE phone = @phone OR pan = @pan";
         using var checkCmd = new NpgsqlCommand(checkQuery, conn);
         checkCmd.Parameters.AddWithValue("@phone", ToDbValue(user.Phone));
@@ -71,7 +66,6 @@ app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users)
             continue;
         }
 
-        // Insert
         string insertQuery = @"
             INSERT INTO moneyview (name, phone, email, employment, pan, pincode, income, city, state, dob, gender, partner_id)
             VALUES (@name, @phone, @email, @employment, @pan, @pincode, @income, @city, @state, @dob, @gender, @partner_id)";
@@ -110,7 +104,6 @@ app.MapPost("/cashKuber", async (HttpContext context, List<MoneyViewUser> users)
         }
     }
 
-    // ✅ Status Code Logic
     if (inserted.Count > 0 && skipped.Count > 0)
         return Results.Json(new { insertedCount = inserted.Count, skippedCount = skipped.Count, inserted, skipped }, statusCode: 207);
     if (inserted.Count == 0 && skipped.Count > 0)

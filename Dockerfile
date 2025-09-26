@@ -15,7 +15,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 COPY --from=build /app .
 
-# Expose port 80
+# ✅ Bind to dynamic port from Render
+ENV ASPNETCORE_URLS=http://+:${PORT}
 EXPOSE 80
 
 # Run the app
